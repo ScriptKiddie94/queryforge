@@ -1,0 +1,404 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * QueryForge design system — ported verbatim from the sigma-to-kql reference
+ * so the two apps read as one suite. Tailwind handles layout utilities; these
+ * component classes carry the signature look (gradients, color-mix, tokens).
+ */
+
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #1c2230;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --code: #c9d1d9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(900px 500px at 15% -5%, rgba(88, 166, 255, 0.1), transparent 60%),
+    radial-gradient(700px 500px at 95% 0%, rgba(163, 113, 247, 0.1), transparent 55%),
+    var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.wrap {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 40px 20px 60px;
+}
+
+/* --- Header --- */
+.badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid rgba(88, 166, 255, 0.35);
+  border-radius: 999px;
+  padding: 4px 12px;
+  margin-bottom: 16px;
+  background: rgba(88, 166, 255, 0.06);
+}
+header h1 {
+  font-size: 2.3rem;
+  margin: 0 0 10px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+header h1 .arrow {
+  color: var(--accent);
+}
+header h1 .sep {
+  color: var(--muted);
+  font-weight: 400;
+}
+header p {
+  color: var(--muted);
+  margin: 0 0 26px;
+  max-width: 660px;
+  line-height: 1.6;
+}
+
+/* --- Example chips --- */
+.chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.chips-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-right: 2px;
+}
+.chip {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.chip:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.chip.active {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.12);
+  color: var(--accent);
+}
+
+/* --- Target toggle (segmented control) --- */
+.toggle {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.toggle button {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  border-radius: 7px;
+  padding: 7px 14px;
+  font-size: 0.83rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  --hue: var(--accent);
+}
+.toggle button:hover {
+  color: var(--text);
+}
+.toggle button.on {
+  background: color-mix(in srgb, var(--hue) 18%, transparent);
+  color: var(--hue);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hue) 40%, transparent);
+}
+
+/* --- Layout --- */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+textarea {
+  width: 100%;
+  height: 470px;
+  resize: vertical;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  transition: border-color 0.15s ease;
+}
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.12);
+}
+
+.generate-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.generate-btn {
+  background: var(--accent);
+  color: #08111f;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+.generate-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.generate-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* --- Output cards --- */
+.output-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.output-col.single .card {
+  min-height: 180px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  --hue: var(--accent);
+  border-top: 2px solid color-mix(in srgb, var(--hue) 65%, var(--border));
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.card:hover {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+}
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 11px 15px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+.card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hue);
+  box-shadow: 0 0 8px var(--hue);
+}
+.lang {
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin-left: 2px;
+  font-weight: 400;
+}
+.card-head button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 7px;
+  padding: 4px 13px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.card-head button:hover {
+  border-color: var(--hue);
+  color: var(--hue);
+}
+.card-head button.copied {
+  border-color: #7ee787;
+  color: #7ee787;
+}
+
+pre {
+  margin: 0;
+  padding: 15px;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--code);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+pre.err {
+  color: #f85149;
+}
+.tok-kw {
+  color: #ff7b72;
+}
+.tok-str {
+  color: #a5d6ff;
+}
+.tok-pipe {
+  color: #d2a8ff;
+}
+
+/* Card metadata: explanation + confidence badge */
+.card-meta {
+  padding: 10px 15px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.explanation {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.confidence {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.confidence.high {
+  color: #7ee787;
+  border-color: rgba(126, 231, 135, 0.4);
+  background: rgba(126, 231, 135, 0.08);
+}
+.confidence.medium {
+  color: #d29922;
+  border-color: rgba(210, 153, 34, 0.4);
+  background: rgba(210, 153, 34, 0.08);
+}
+.confidence.low {
+  color: #f85149;
+  border-color: rgba(248, 81, 73, 0.4);
+  background: rgba(248, 81, 73, 0.08);
+}
+
+/* Honest warning strip — validation flagged a column outside the catalog */
+.warn {
+  padding: 9px 15px;
+  font-size: 0.76rem;
+  color: #d29922;
+  background: rgba(210, 153, 34, 0.08);
+  border-top: 1px solid rgba(210, 153, 34, 0.2);
+}
+.warn code {
+  color: #e3b341;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* Empty / loading placeholders */
+.placeholder {
+  padding: 22px 15px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid color-mix(in srgb, var(--hue) 45%, transparent);
+  border-top-color: var(--hue);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: -2px;
+  margin-right: 8px;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.card.loading {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+
+/* --- Footer --- */
+footer {
+  margin-top: 30px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+footer a:hover {
+  text-decoration: underline;
+}

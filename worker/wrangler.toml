@@ -1,0 +1,38 @@
+name = "queryforge-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-07-26"
+workers_dev = true
+
+# Non-secret configuration. Making the model + base URL env-driven is what lets
+# you switch providers (Groq → Cloudflare Workers AI → Gemini/OpenRouter) without
+# touching code — free provider catalogs change without notice.
+[vars]
+LLM_MODEL = "llama-3.3-70b-versatile"
+LLM_BASE_URL = "https://api.groq.com/openai/v1"
+# Lock this to your GitHub Pages origin in production, e.g.
+#   ALLOWED_ORIGIN = "https://<you>.github.io"
+# "*" is fine for local dev only.
+ALLOWED_ORIGIN = "*"
+
+# --- Secrets (DO NOT put here; set with `wrangler secret put`) ---
+#   wrangler secret put GROQ_API_KEY       # your gsk_... key (or CF API token, etc.)
+#   wrangler secret put TURNSTILE_SECRET   # Cloudflare Turnstile secret key
+# When TURNSTILE_SECRET is unset (e.g. local dev), Turnstile verification is skipped.
+
+# --- Per-IP rate limiting (recommended; free) ---
+# Uncomment to enable the Rate Limiting binding. `namespace_id` is any unique
+# integer string you choose for this limiter.
+# [[unsafe.bindings]]
+# name = "RATE_LIMITER"
+# type = "ratelimit"
+# namespace_id = "1001"
+# simple = { limit = 20, period = 60 }   # 20 requests / 60s per IP
+
+# ---------------------------------------------------------------------------
+# ALTERNATIVE PROVIDER — Cloudflare Workers AI (model runs on Cloudflare):
+#   Set these vars instead of the Groq ones above, and put a Cloudflare API
+#   token in GROQ_API_KEY (the var name stays the same — it's just the bearer):
+#     LLM_BASE_URL = "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1"
+#     LLM_MODEL    = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+#   No other code changes are needed.
+# ---------------------------------------------------------------------------

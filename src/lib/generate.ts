@@ -6,6 +6,11 @@
 // Design note: the UI fires one call PER TARGET in parallel (Promise.all) rather
 // than a single multi-target conversation. Tradeoff: 2–3× requests, but lower
 // latency and fault isolation — one target's malformed JSON can't sink the others.
+//
+// Turnstile tokens are single-use, so one raw token can't cover N parallel target
+// requests. verifyTurnstile() below exchanges ONE solved Turnstile token for a
+// short-lived "burst" token (see worker/src/index.ts /verify) that all N calls
+// in a single "Generate" click can share.
 
 import type { TargetId } from "./targets";
 import type { Confidence, GeneratedQuery } from "./types";
@@ -97,6 +102,50 @@ function extractContent(body: unknown): string | null {
   return typeof msg?.content === "string" ? msg.content : null;
 }
 
+/** Pull { error: { message } } out of one of the Worker's error responses, if present. */
+async function extractErrorMessage(res: Response): Promise<string | null> {
+  try {
+    const body = (await res.clone().json()) as { error?: { message?: unknown } };
+    return typeof body?.error?.message === "string" ? body.error.message : null;
+  } catch {
+    return null;
+  }
+}
+
+export type VerifyOutcome = { ok: true; burstToken: string } | { ok: false; message: string };
+
+/** Exchange one solved Turnstile token for a short-lived burst token (POST /verify). */
+export async function verifyTurnstile(
+  rawToken: string,
+  opts: { fetchImpl?: typeof fetch; url?: string } = {},
+): Promise<VerifyOutcome> {
+  const doFetch = opts.fetchImpl ?? fetch;
+  const endpoint = `${(opts.url ?? proxyUrl()).replace(/\/$/, "")}/verify`;
+
+  let res: Response;
+  try {
+    res = await doFetch(endpoint, {
+      method: "POST",
+      headers: { "cf-turnstile-token": rawToken },
+    });
+  } catch {
+    return { ok: false, message: "Could not reach the verification service." };
+  }
+
+  if (!res.ok) {
+    const detail = await extractErrorMessage(res);
+    return { ok: false, message: detail ?? `Verification failed (${res.status}).` };
+  }
+
+  try {
+    const body = (await res.json()) as { burstToken?: unknown };
+    if (typeof body.burstToken !== "string") throw new Error("malformed");
+    return { ok: true, burstToken: body.burstToken };
+  } catch {
+    return { ok: false, message: "Verification service returned malformed data." };
+  }
+}
+
 /** Generate one target's query via the Worker proxy. Never throws. */
 export async function generate(
   intent: string,
@@ -125,10 +174,11 @@ export async function generate(
     return { ok: false, kind: "rate_limited", message: "Rate limited — try again in a moment." };
   }
   if (!res.ok) {
+    const detail = await extractErrorMessage(res);
     return {
       ok: false,
       kind: "server",
-      message: `Query service error (${res.status}).`,
+      message: detail ?? `Query service error (${res.status}).`,
     };
   }
 

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { OutputCard, type CardState } from "./components/OutputCard";
 import { TurnstileWidget, type TurnstileHandle } from "./components/TurnstileWidget";
-import { generate } from "./lib/generate";
+import { generate, verifyTurnstile } from "./lib/generate";
 import { EXAMPLE_INTENTS, TARGETS, type TargetId } from "./lib/targets";
 import { validateQuery } from "./lib/validate";
 
@@ -41,39 +41,54 @@ export default function App() {
       return next;
     });
 
-    // Turnstile tokens are single-use, so each target needs its OWN token —
-    // fetched sequentially (the widget tracks one pending verification at a
-    // time), then the actual generate calls still run in parallel.
-    const tokens: Partial<Record<TargetId, string>> = {};
+    // Turnstile tokens are single-use, but one click fans out to N parallel
+    // target requests. So: solve Turnstile ONCE, exchange it for a short-lived
+    // burst token (POST /verify), then share that burst token across all N
+    // generate() calls — it isn't a Turnstile token, so the single-use rule
+    // doesn't apply to it.
+    let burstToken: string | undefined;
     if (requiresTurnstile) {
-      for (const id of targets) {
-        try {
-          tokens[id] = await turnstileRef.current!.getToken();
-        } catch {
-          setCards((prev) => ({
-            ...prev,
-            [id]: { status: "error", message: "Bot verification failed — try again." },
-          }));
-        }
+      let rawToken: string;
+      try {
+        rawToken = await turnstileRef.current!.getToken();
+      } catch {
+        setCards((prev) => {
+          const next = { ...prev };
+          for (const id of targets) {
+            next[id] = { status: "error", message: "Bot verification failed — try again." };
+          }
+          return next;
+        });
+        setBusy(false);
+        return;
       }
+      const verified = await verifyTurnstile(rawToken);
+      if (!verified.ok) {
+        setCards((prev) => {
+          const next = { ...prev };
+          for (const id of targets) next[id] = { status: "error", message: verified.message };
+          return next;
+        });
+        setBusy(false);
+        return;
+      }
+      burstToken = verified.burstToken;
     }
 
     await Promise.all(
-      targets
-        .filter((id) => !requiresTurnstile || tokens[id])
-        .map(async (id) => {
-          const outcome = await generate(intent, id, { turnstileToken: tokens[id] });
-          setCards((prev) => ({
-            ...prev,
-            [id]: outcome.ok
-              ? {
-                  status: "done",
-                  result: outcome.result,
-                  validation: validateQuery(outcome.result.query, id, outcome.result.table),
-                }
-              : { status: "error", message: outcome.message },
-          }));
-        }),
+      targets.map(async (id) => {
+        const outcome = await generate(intent, id, { turnstileToken: burstToken });
+        setCards((prev) => ({
+          ...prev,
+          [id]: outcome.ok
+            ? {
+                status: "done",
+                result: outcome.result,
+                validation: validateQuery(outcome.result.query, id, outcome.result.table),
+              }
+            : { status: "error", message: outcome.message },
+        }));
+      }),
     );
 
     setBusy(false);

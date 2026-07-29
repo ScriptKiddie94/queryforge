@@ -13,9 +13,15 @@ worthless to an attacker:
    The Worker builds the actual prompt from the shared schema module
    ([`../src/lib/prompt.ts`](../src/lib/prompt.ts)). The proxy can therefore *only*
    produce detection queries — it is not a general-purpose LLM you can jailbreak.
-2. **Cloudflare Turnstile.** When `TURNSTILE_SECRET` is set, a valid Turnstile
-   token is required; `curl`/headless callers without a browser challenge are
-   rejected with `403`.
+2. **Cloudflare Turnstile, exchanged for a short-lived "burst" token.** Turnstile
+   tokens are single-use, but one "Generate" click fans out to up to 3 parallel
+   target requests. So the client solves Turnstile once per click and exchanges
+   it via `POST /verify` for an HMAC-signed, 60-second burst token, which the N
+   parallel calls to `POST /` then share. The Worker verifies the burst token's
+   signature + expiry locally (stateless, no KV/Durable Objects) — no repeat
+   `siteverify` calls, and Turnstile's single-use rule is never violated because
+   the burst token isn't a Turnstile token. `curl`/headless callers without a
+   browser challenge are rejected with `403`.
 3. **Per-IP rate limiting** via the Rate Limiting binding (optional, free) plus a
    documented dashboard WAF rule.
 4. **Hygiene:** POST only, strict CORS locked to `ALLOWED_ORIGIN`, ≤4 KB body,
@@ -23,14 +29,23 @@ worthless to an attacker:
    `intent` length-capped), and graceful `429` passthrough. Provider error bodies
    are never forwarded (so the key can never leak).
 
-## Endpoint
+## Endpoints
 
-`POST /`
+`POST /verify` — exchange one solved Turnstile token for a burst token (skip if
+`TURNSTILE_SECRET` is unset):
+
+```jsonc
+// headers: cf-turnstile-token: <token from the Turnstile widget>
+// response
+{ "burstToken": "1785300000000.Xy...", "exp": 1785300000000 }
+```
+
+`POST /` — the actual generation call:
 
 ```jsonc
 // request
 { "intent": "find powershell spawned from office with an encoded command", "target": "defender" }
-// headers (production): cf-turnstile-token: <token from the Turnstile widget>
+// headers (production): cf-turnstile-token: <burstToken from /verify>
 ```
 
 Returns the provider's OpenAI-compatible JSON (`choices[0].message.content` holds
@@ -42,6 +57,7 @@ the model's JSON). Errors return `{ "error": { "code": string, "message": string
 |------|-------|---------|---------|
 | `GROQ_API_KEY` | **secret** | — | Provider bearer key (Groq `gsk_…`, or a CF API token for Workers AI) |
 | `TURNSTILE_SECRET` | **secret** | *(unset → skipped)* | Turnstile secret key; enables the bot gate |
+| `BURST_SECRET` | **secret** | *(falls back to `TURNSTILE_SECRET`)* | Optional dedicated HMAC key for burst tokens; separate from `TURNSTILE_SECRET` for stricter key separation in high-security deployments |
 | `LLM_MODEL` | var | `llama-3.3-70b-versatile` | Model id (never hardcoded in logic) |
 | `LLM_BASE_URL` | var | `https://api.groq.com/openai/v1` | OpenAI-compatible base URL |
 | `ALLOWED_ORIGIN` | var | `*` | Lock to your Pages origin in production |

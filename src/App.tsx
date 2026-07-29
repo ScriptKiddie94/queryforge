@@ -194,43 +194,26 @@ export default function App() {
             </p>
           </div>
 
+          <div className="quickstart" data-reveal>
+            <span className="side-label">Try an example</span>
+            <div className="chips">
+              {EXAMPLE_INTENTS.map((ex) => (
+                <button
+                  key={ex.id}
+                  className={"chip" + (activeChip === ex.id ? " active" : "")}
+                  onClick={() => {
+                    setIntent(ex.intent);
+                    setActiveChip(ex.id);
+                  }}
+                >
+                  {ex.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="studio-grid">
             <aside className="studio-side">
-              <div className="chips">
-                <span className="chips-label">Try:</span>
-                {EXAMPLE_INTENTS.map((ex) => (
-                  <button
-                    key={ex.id}
-                    className={"chip" + (activeChip === ex.id ? " active" : "")}
-                    onClick={() => {
-                      setIntent(ex.intent);
-                      setActiveChip(ex.id);
-                    }}
-                  >
-                    {ex.label}
-                  </button>
-                ))}
-              </div>
-
-              <div>
-                <div className="side-label">Targets</div>
-                <div className="toggle" style={{ marginTop: 8 }}>
-                  <button className={view === "all" ? "on" : ""} onClick={() => setView("all")}>
-                    All
-                  </button>
-                  {TARGETS.map((t) => (
-                    <button
-                      key={t.id}
-                      className={view === t.id ? "on" : ""}
-                      style={{ ["--hue" as string]: t.hue }}
-                      onClick={() => setView(t.id)}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div className="io-panel">
                 <label htmlFor="intent">Hunting intent (natural language)</label>
                 <textarea
@@ -252,6 +235,25 @@ export default function App() {
                   )}
                 </div>
                 <TurnstileWidget ref={turnstileRef} onReady={setTurnstileReady} />
+              </div>
+
+              <div className="target-select">
+                <span className="side-label">Targets</span>
+                <div className="toggle">
+                  <button className={view === "all" ? "on" : ""} onClick={() => setView("all")}>
+                    All
+                  </button>
+                  {TARGETS.map((t) => (
+                    <button
+                      key={t.id}
+                      className={view === t.id ? "on" : ""}
+                      style={{ ["--hue" as string]: t.hue }}
+                      onClick={() => setView(t.id)}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </aside>
 

@@ -1,8 +1,15 @@
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 // Cloudflare Turnstile — renders only when VITE_TURNSTILE_SITE_KEY is set.
 // In local dev (no site key), this renders nothing and the Worker skips the
 // bot gate, so the app still works end-to-end.
+//
+// Turnstile tokens are SINGLE-USE. QueryForge fires one backend request per
+// shown target (up to 3, in parallel), so one token cannot cover a whole
+// "Generate" click. Instead, getToken() is called once per target — Cloudflare's
+// documented pattern for "give me another token" is to reset() the already-
+// rendered widget, which re-runs verification (near-instant in Managed mode)
+// and fires the callback again with a fresh token.
 
 interface TurnstileApi {
   render: (
@@ -16,13 +23,13 @@ interface TurnstileApi {
       size?: "normal" | "flexible" | "compact";
     },
   ) => string;
-  remove: (id: string) => void;
+  reset: (widgetId: string) => void;
+  remove: (widgetId: string) => void;
 }
 
 declare global {
   interface Window {
     turnstile?: TurnstileApi;
-    __qfTurnstileReady?: boolean;
   }
 }
 
@@ -47,36 +54,72 @@ function loadScript(): Promise<void> {
   });
 }
 
-export function TurnstileWidget({ onToken }: { onToken: (token: string | null) => void }) {
-  const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!siteKey || !ref.current) return;
-    let widgetId: string | undefined;
-    let cancelled = false;
-    const container = ref.current;
-
-    loadScript()
-      .then(() => {
-        if (cancelled || !window.turnstile || !container) return;
-        widgetId = window.turnstile.render(container, {
-          sitekey: siteKey,
-          theme: "dark",
-          size: "flexible",
-          callback: (token) => onToken(token),
-          "error-callback": () => onToken(null),
-          "expired-callback": () => onToken(null),
-        });
-      })
-      .catch(() => onToken(null));
-
-    return () => {
-      cancelled = true;
-      if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
-    };
-  }, [siteKey, onToken]);
-
-  if (!siteKey) return null;
-  return <div ref={ref} className="turnstile" style={{ marginTop: 12 }} />;
+export interface TurnstileHandle {
+  /** Resolves with a fresh, single-use verification token. One call per backend request. */
+  getToken: () => Promise<string>;
 }
+
+export const TurnstileWidget = forwardRef<TurnstileHandle, { onReady: (ready: boolean) => void }>(
+  function TurnstileWidget({ onReady }, ref) {
+    const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+    const containerRef = useRef<HTMLDivElement>(null);
+    const widgetIdRef = useRef<string>();
+    const pendingRef = useRef<{ resolve: (t: string) => void; reject: (e: Error) => void } | null>(
+      null,
+    );
+
+    useEffect(() => {
+      if (!siteKey || !containerRef.current) return;
+      let cancelled = false;
+      const container = containerRef.current;
+
+      loadScript()
+        .then(() => {
+          if (cancelled || !window.turnstile || !container) return;
+          widgetIdRef.current = window.turnstile.render(container, {
+            sitekey: siteKey,
+            theme: "dark",
+            size: "flexible",
+            callback: (token) => {
+              onReady(true);
+              pendingRef.current?.resolve(token);
+              pendingRef.current = null;
+            },
+            "error-callback": () => {
+              onReady(false);
+              pendingRef.current?.reject(new Error("Turnstile challenge failed."));
+              pendingRef.current = null;
+            },
+            "expired-callback": () => onReady(false),
+          });
+        })
+        .catch(() => onReady(false));
+
+      return () => {
+        cancelled = true;
+        if (widgetIdRef.current && window.turnstile) window.turnstile.remove(widgetIdRef.current);
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [siteKey]);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        getToken: () =>
+          new Promise<string>((resolve, reject) => {
+            if (!window.turnstile || !widgetIdRef.current) {
+              reject(new Error("Turnstile not ready."));
+              return;
+            }
+            pendingRef.current = { resolve, reject };
+            // reset() re-runs verification and fires `callback` again with a new token.
+            window.turnstile.reset(widgetIdRef.current);
+          }),
+      }),
+      [],
+    );
+
+    if (!siteKey) return null;
+    return <div ref={containerRef} className="turnstile" style={{ marginTop: 12 }} />;
+  },
+);

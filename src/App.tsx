@@ -1,6 +1,6 @@
-import { useCallback, useState } from "react";
+import { useRef, useState } from "react";
 import { OutputCard, type CardState } from "./components/OutputCard";
-import { TurnstileWidget } from "./components/TurnstileWidget";
+import { TurnstileWidget, type TurnstileHandle } from "./components/TurnstileWidget";
 import { generate } from "./lib/generate";
 import { EXAMPLE_INTENTS, TARGETS, type TargetId } from "./lib/targets";
 import { validateQuery } from "./lib/validate";
@@ -15,7 +15,8 @@ export default function App() {
   const [activeChip, setActiveChip] = useState<string>(EXAMPLE_INTENTS[0].id);
   const [view, setView] = useState<View>("all");
   const [busy, setBusy] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileReady, setTurnstileReady] = useState(false);
+  const turnstileRef = useRef<TurnstileHandle>(null);
   const [cards, setCards] = useState<Record<TargetId, CardState>>({
     sentinel: IDLE,
     defender: IDLE,
@@ -24,9 +25,7 @@ export default function App() {
 
   const shownTargets = view === "all" ? TARGETS : TARGETS.filter((t) => t.id === view);
   const canGenerate =
-    intent.trim().length > 0 && !busy && (!requiresTurnstile || !!turnstileToken);
-
-  const onToken = useCallback((t: string | null) => setTurnstileToken(t), []);
+    intent.trim().length > 0 && !busy && (!requiresTurnstile || turnstileReady);
 
   async function runGeneration() {
     if (!canGenerate) return;
@@ -42,22 +41,39 @@ export default function App() {
       return next;
     });
 
+    // Turnstile tokens are single-use, so each target needs its OWN token —
+    // fetched sequentially (the widget tracks one pending verification at a
+    // time), then the actual generate calls still run in parallel.
+    const tokens: Partial<Record<TargetId, string>> = {};
+    if (requiresTurnstile) {
+      for (const id of targets) {
+        try {
+          tokens[id] = await turnstileRef.current!.getToken();
+        } catch {
+          setCards((prev) => ({
+            ...prev,
+            [id]: { status: "error", message: "Bot verification failed — try again." },
+          }));
+        }
+      }
+    }
+
     await Promise.all(
-      targets.map(async (id) => {
-        const outcome = await generate(intent, id, {
-          turnstileToken: turnstileToken ?? undefined,
-        });
-        setCards((prev) => ({
-          ...prev,
-          [id]: outcome.ok
-            ? {
-                status: "done",
-                result: outcome.result,
-                validation: validateQuery(outcome.result.query, id, outcome.result.table),
-              }
-            : { status: "error", message: outcome.message },
-        }));
-      }),
+      targets
+        .filter((id) => !requiresTurnstile || tokens[id])
+        .map(async (id) => {
+          const outcome = await generate(intent, id, { turnstileToken: tokens[id] });
+          setCards((prev) => ({
+            ...prev,
+            [id]: outcome.ok
+              ? {
+                  status: "done",
+                  result: outcome.result,
+                  validation: validateQuery(outcome.result.query, id, outcome.result.table),
+                }
+              : { status: "error", message: outcome.message },
+          }));
+        }),
     );
 
     setBusy(false);
@@ -127,13 +143,13 @@ export default function App() {
             <button className="generate-btn" onClick={runGeneration} disabled={!canGenerate}>
               {busy ? "Generating…" : "Generate queries"}
             </button>
-            {requiresTurnstile && !turnstileToken && (
+            {requiresTurnstile && !turnstileReady && (
               <span style={{ color: "var(--muted)", fontSize: "0.78rem" }}>
                 Complete the challenge to enable generation.
               </span>
             )}
           </div>
-          <TurnstileWidget onToken={onToken} />
+          <TurnstileWidget ref={turnstileRef} onReady={setTurnstileReady} />
         </div>
 
         <div className={"output-col" + (view === "all" ? "" : " single")}>

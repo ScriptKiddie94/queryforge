@@ -141,7 +141,9 @@ export default function App() {
         <div className="container nav-inner">
           <a className="brand" href="#top">
             <span className="brand-mark" />
-            Query<span className="accent">Forge</span>
+            <span className="brand-name">
+              Query<span className="accent">Forge</span>
+            </span>
           </a>
           <div className="nav-links">
             <a className="nav-link hide-sm" href="#how">

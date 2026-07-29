@@ -91,6 +91,10 @@ export function OutputCard({ target, state }: { target: TargetDef; state: CardSt
               )}
             </div>
           )}
+
+          {state.validation.ok && (
+            <div className="validated">✓ Validated — every column exists in the schema catalog.</div>
+          )}
         </>
       )}
     </div>
